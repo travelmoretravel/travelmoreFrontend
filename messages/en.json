@@ -177,10 +177,10 @@
     "description": "Your trusted partner for unforgettable trips and reliable car rentals. Explore the world with ease and comfort!",
     "quickLinks": {
       "title": "Quick Links",
-      "destinations": "Destinations",
+      "blog": "Blog",
       "carRental": "Car Rental",
       "about": "About Us",
-      "contact": "Contact"
+      "gallery": "Gallery"
     },
     "contact": {
       "title": "Contact Us",

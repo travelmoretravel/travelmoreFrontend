@@ -1,3 +1,4 @@
+/// components/GalleryGrid.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";

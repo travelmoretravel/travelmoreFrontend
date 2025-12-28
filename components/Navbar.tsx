@@ -102,11 +102,7 @@ function DropdownLink({
         </svg>
       </button>
 
-      {/* FIX APPLIED:
-         1. md:top-full -> Anchors menu strictly to the bottom of the text.
-         2. md:pt-6 -> Creates a generous invisible safe zone (bridge) for the mouse.
-         3. z-[999] -> Ensures dropdown is always on top.
-      */}
+      
       <div
         className={`
           md:absolute md:left-0 md:top-full md:pt-6 md:w-48 z-[999]

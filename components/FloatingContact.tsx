@@ -14,8 +14,7 @@ export default function FloatingContact() {
     {
       name: "WhatsApp",
       icon: <MessageCircle size={20} />,
-      // Format WA: 62 pengganti 0 di depan
-      href: "https://wa.me/6282224291148?text=Halo%20Travelmore,%20saya%20ingin%20bertanya%20tentang%20paket%20wisata.", 
+      href: "https://wa.me/6282224291148?text=Halo%20Travelmore,%20saya%20ingin%20bertanya%20tentang%20paket%20wisata.",
       color: "bg-green-500 hover:bg-green-600",
       textColor: "text-white"
     },
@@ -37,7 +36,7 @@ export default function FloatingContact() {
 
   return (
     <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-3">
-      
+
       {/* --- Menu Kontak (Muncul saat isOpen = true) --- */}
       <div
         className={`flex flex-col gap-3 transition-all duration-300 ease-in-out origin-bottom-right ${
@@ -46,27 +45,33 @@ export default function FloatingContact() {
             : "opacity-0 scale-0 translate-y-10 pointer-events-none"
         }`}
       >
-        {contacts.map((contact, index) => (
-          <a
-            key={index}
-            href={contact.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center justify-end gap-3 group`}
-          >
-            {/* Label (Muncul saat hover) */}
-            <span className="bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm font-medium px-3 py-1.5 rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-              {contact.name}
-            </span>
-            
-            {/* Icon Button */}
-            <div
-              className={`w-12 h-12 flex items-center justify-center rounded-full shadow-lg transition-transform transform hover:scale-110 ${contact.color} ${contact.textColor}`}
+        {contacts.map((contact, index) => {
+          // Cek apakah ini link email
+          const isEmail = contact.href.startsWith("mailto:");
+
+          return (
+            <a
+              key={index}
+              href={contact.href}
+              // PERBAIKAN DISINI: Jangan gunakan _blank jika itu adalah email
+              target={isEmail ? undefined : "_blank"}
+              rel={isEmail ? undefined : "noopener noreferrer"}
+              className={`flex items-center justify-end gap-3 group`}
             >
-              {contact.icon}
-            </div>
-          </a>
-        ))}
+              {/* Label (Muncul saat hover) */}
+              <span className="bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm font-medium px-3 py-1.5 rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                {contact.name}
+              </span>
+
+              {/* Icon Button */}
+              <div
+                className={`w-12 h-12 flex items-center justify-center rounded-full shadow-lg transition-transform transform hover:scale-110 ${contact.color} ${contact.textColor}`}
+              >
+                {contact.icon}
+              </div>
+            </a>
+          );
+        })}
       </div>
 
       {/* --- Tombol Utama (Trigger) --- */}

@@ -2,11 +2,13 @@
 "use client";
 
 import React from "react";
-// PENTING: Gunakan Link dari konfigurasi i18n, bukan next/link biasa
+// PENTING: Gunakan Link dari konfigurasi i18n
 import { Link } from "@/i18n/navigation"; 
 import Image from "next/image";
 import { useTheme } from "./ThemeProvider";
 import { useTranslations } from "next-intl";
+// Icon tidak lagi dibutuhkan karena kita hanya menggunakan teks
+// import { MessageCircle, Instagram, Mail } from "lucide-react"; 
 
 const Footer: React.FC = () => {
   const { theme } = useTheme();
@@ -23,7 +25,7 @@ const Footer: React.FC = () => {
         <div className="flex flex-col max-w-sm">
           <Link href="/">
             <Image
-              key={logoSrc} // Key ini memaksa gambar refresh instan saat ganti tema
+              key={logoSrc}
               src={logoSrc}
               alt="Logo TravelMore"
               width={160}
@@ -36,60 +38,75 @@ const Footer: React.FC = () => {
           </p>
         </div>
 
-        {/* 2. Quick Links */}
+        {/* 2. Quick Links (Blog & Gallery) */}
         <div>
           <h3 className="mb-4 text-lg font-bold text-white">{t("quickLinks.title")}</h3>
           <ul className="space-y-3 text-gray-400">
             <li>
-              <Link href="/destinations" className="hover:text-primary transition-colors hover:pl-1 duration-200">
-                {t("quickLinks.destinations")}
+              <Link href="/blog" className="hover:text-primary transition-colors hover:pl-1 duration-200">
+                {t("quickLinks.blog") || "Blog"} 
               </Link>
             </li>
+            
             <li>
               <Link href="/car-rental" className="hover:text-primary transition-colors hover:pl-1 duration-200">
                 {t("quickLinks.carRental")}
               </Link>
             </li>
+            
             <li>
               <Link href="/about" className="hover:text-primary transition-colors hover:pl-1 duration-200">
                 {t("quickLinks.about")}
               </Link>
             </li>
+
             <li>
-              <Link href="/contact" className="hover:text-primary transition-colors hover:pl-1 duration-200">
-                {t("quickLinks.contact")}
+              <Link href="/gallery" className="hover:text-primary transition-colors hover:pl-1 duration-200">
+                {t("quickLinks.gallery") || "Gallery"}
               </Link>
             </li>
           </ul>
         </div>
 
-        {/* 3. Contact Info */}
+        {/* 3. Contact Info (Tampilan Teks Sederhana seperti Gambar 1) */}
         <div>
           <h3 className="mb-4 text-lg font-bold text-white">{t("contact.title")}</h3>
-          <div className="space-y-4 text-sm text-gray-400">
+          <div className="space-y-6 text-sm text-gray-400">
+            
+            {/* Alamat */}
             <p className="leading-relaxed max-w-xs">
               {t("contact.address")}
             </p>
             
+            {/* Telepon (Format Teks) */}
             <div className="flex flex-col gap-1">
-              <span className="font-semibold text-gray-500 text-xs uppercase">{t("contact.phone")}</span>
+              <span className="font-bold text-gray-500 text-xs uppercase tracking-wider">
+                {t("contact.phone") || "TELEPON:"}
+              </span>
               <a
-                href="tel:+6281234567890"
-                className="hover:text-primary transition-colors text-white text-base font-medium"
+                href="https://wa.me/6282224291148"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white text-base font-medium hover:text-primary transition-colors"
               >
-                +62 812 3456 7890
+                +62 822 2429 1148
               </a>
             </div>
 
+            {/* Email (Format Teks) */}
             <div className="flex flex-col gap-1">
-              <span className="font-semibold text-gray-500 text-xs uppercase">{t("contact.email")}</span>
+              <span className="font-bold text-gray-500 text-xs uppercase tracking-wider">
+                {t("contact.email") || "EMAIL:"}
+              </span>
               <a
-                href="mailto:info@travelmore.com"
-                className="hover:text-primary transition-colors text-white text-base font-medium"
+                href="mailto:hitmeup.travelmoreco@gmail.com"
+                className="text-white text-base font-medium hover:text-primary transition-colors"
               >
-                info@travelmore.com
+                hitmeup.travelmoreco@gmail.com 
+
               </a>
             </div>
+
           </div>
         </div>
       </div>

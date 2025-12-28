@@ -177,10 +177,10 @@
     "description": "Mitra tepercaya Anda untuk perjalanan tak terlupakan dan sewa mobil andal. Jelajahi dunia dengan mudah dan nyaman!",
     "quickLinks": {
       "title": "Tautan Cepat",
-      "destinations": "Destinasi",
+      "blog": "Blog",
       "carRental": "Sewa Mobil",
       "about": "Tentang Kami",
-      "contact": "Kontak"
+      "gallery": "Galeri"
     },
     "contact": {
       "title": "Hubungi Kami",
@@ -1114,7 +1114,7 @@
     "card_cta": "Lihat Detail",
     "otherServices": {
       "packages_title": "Paket Wisata",
-      "packages_desc": "Pilih dari paket wisata kurasi kami untuk liburan tanpa repot. Kami telah menggabungkan destinasi dan aktivitas terbaik.",
+      "packages_desc": "Pilih dari paket perjalanan kami yang dikurasi untuk liburan tanpa repot. Kami telah menggabungkan destinasi dan aktivitas terbaik.",
       "rental_title": "Sewa Kendaraan",
       "rental_desc": "Jelajahi Yogyakarta dengan bebas menggunakan armada kami yang terawat, tersedia dengan atau tanpa sopir.",
       "activities_title": "Aktivitas Harian",
