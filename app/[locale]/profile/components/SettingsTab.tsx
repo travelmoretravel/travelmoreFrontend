@@ -198,7 +198,7 @@ export default function SettingsTab() {
             <div className="flex flex-row items-stretch h-[54px] rounded-xl border border-gray-200 overflow-hidden focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary transition-all shadow-sm">
               
               {/* FIXED WIDTH DROPDOWN - Mencegah terpotong */}
-              <div className="relative w-[130px] sm:w-[170px] flex-shrink-0 bg-gray-100 border-r border-gray-200">
+              <div className="relative w-[130px] sm:w-[170px] shrink-0 bg-gray-100 border-r border-gray-200">
                 <select
                   value={phoneCode}
                   onChange={(e) => setPhoneCode(e.target.value)}

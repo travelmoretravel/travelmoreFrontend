@@ -353,7 +353,7 @@ export default function CarDetailView({ initialData }: CarDetailViewProps) {
                 {gallery.map((img, index) => (
                   <div
                     key={index}
-                    className={`relative w-20 h-20 rounded-lg cursor-pointer border-2 flex-shrink-0 ${img.full === activeImage ? (isExclusive ? "border-yellow-500" : "border-primary") : "border-transparent"}`}
+                    className={`relative w-20 h-20 rounded-lg cursor-pointer border-2 shrink-0 ${img.full === activeImage ? (isExclusive ? "border-yellow-500" : "border-primary") : "border-transparent"}`}
                     onClick={() => setActiveImage(img.full)}
                   >
                     <Image src={img.full} alt={`${carName} ${index}`} fill className="object-cover rounded-lg" sizes="5rem" />
@@ -517,7 +517,7 @@ export default function CarDetailView({ initialData }: CarDetailViewProps) {
                               type="button"
                               onClick={handleApplyCode}
                               disabled={!discountCode.trim() || isCheckingCode || !selectedRange?.from}
-                              className={`font-bold px-4 rounded-lg disabled:opacity-50 min-w-[80px] flex items-center justify-center transition-colors ${buttonClass}`}
+                              className={`font-bold px-4 rounded-lg disabled:opacity-50 min-w-20 flex items-center justify-center transition-colors ${buttonClass}`}
                           >
                               {isCheckingCode ? <Loader2 size={16} className="animate-spin" /> : "Apply"}
                           </button>

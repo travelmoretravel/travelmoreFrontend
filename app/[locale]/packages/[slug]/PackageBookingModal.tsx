@@ -246,7 +246,7 @@ const PackageBookingModal: React.FC<PackageBookingModalProps> = ({
   const isMapLink = (text: string) => text.includes("goo.gl") || text.includes("maps.app");
 
   return (
-    <div className="fixed inset-0 z-[1000] flex justify-center items-start bg-black/70 backdrop-blur-sm p-4 overflow-y-auto animate-fadeIn">
+    <div className="fixed inset-0 z-1000 flex justify-center items-start bg-black/70 backdrop-blur-sm p-4 overflow-y-auto animate-fadeIn">
       <div className={`${modalBgClass} rounded-xl shadow-xl p-6 sm:p-8 w-full max-w-lg relative my-10 animate-in zoom-in-95 duration-200`}>
         <button onClick={onClose} className={`absolute top-4 right-4 ${mutedTextColor} hover:${textColor} transition-colors`}><X size={24} /></button>
 

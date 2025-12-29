@@ -6,12 +6,21 @@ import api from "@/lib/api";
 import { formatCurrency, formatDate, getStatusChip } from "@/lib/utils";
 import { 
   ArrowLeft, Calendar, CreditCard, FileText, User, MapPin, Clock, Plane, Wallet,
-  Compass, Users, Phone, Mail, Building2, Car, Luggage, Ticket, Map, MessageSquare,
-  CheckCircle2, Hash, AlertCircle, HelpCircle, MessageCircle
-} from "lucide-react";
+  Compass, Users, Phone, Mail, Ticket, Map, MessageSquare,
+  CheckCircle2, Hash, AlertCircle, HelpCircle, MessageCircle, 
+  ListChecks, Tag, Package, PlusCircle, Car, Luggage 
+} from "lucide-react"; 
 import { toast } from "sonner";
 
 // --- TYPES ---
+interface OrderItem {
+  id: number;
+  name: string | null;
+  quantity: number;
+  price: number;
+  orderable_type: string;
+}
+
 interface BookingDetails {
   [key: string]: unknown;
   service_name?: string;
@@ -51,6 +60,10 @@ interface BookingDetails {
   departureDate?: string;
   duration?: string | number;
   budgetPack?: string;
+  price_per_day?: number;
+  price_per_person?: number;
+  price_per_pax?: number;
+  selected_addons?: Array<{ name: string; price: number }>;
 }
 
 interface Bookable {
@@ -63,6 +76,7 @@ interface Bookable {
   luggage?: number;
   destination?: string;
   meeting_point?: string;
+  duration?: string | number;
   [key: string]: unknown;
 }
 
@@ -84,11 +98,10 @@ interface Order {
   down_payment_amount: number;
   payment_deadline: string;
   total_amount: string | number;
+  subtotal: string | number;
+  discount_amount: string | number;
   booking?: Booking;
-  // Fallbacks
-  details?: BookingDetails; 
-  bookable?: Bookable; 
-  bookable_type?: string; 
+  order_items?: OrderItem[];
 }
 
 // --- HELPER COMPONENTS ---
@@ -101,7 +114,7 @@ const InfoRow = ({ icon, label, value }: { icon: React.ReactNode, label: string,
       </div>
       <div className="flex-1">
         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">{label}</p>
-        <div className="text-sm font-medium text-foreground break-words leading-snug">{value}</div>
+        <div className="text-sm font-medium text-foreground break-all leading-snug">{value}</div>
       </div>
     </div>
   );
@@ -113,6 +126,24 @@ const SectionTitle = ({ icon, title }: { icon: React.ReactNode, title: string })
     <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">{title}</h3>
   </div>
 );
+
+const AddonsSection = ({ addons }: { addons?: Array<{ name: string; price: number }> }) => {
+  if (!addons || addons.length === 0) return null;
+  return (
+    <div className="mt-4 pt-4 border-t border-dashed border-border">
+      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <PlusCircle size={12} className="text-orange-500" /> Booked Add-ons
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {addons.map((addon, idx) => (
+          <span key={idx} className="bg-orange-50 text-orange-700 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-orange-100 shadow-sm">
+            {String(addon.name)}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const ServiceTypeBadge = ({ type }: { type: string }) => {
   let config = { 
@@ -135,36 +166,43 @@ const ServiceTypeBadge = ({ type }: { type: string }) => {
   );
 };
 
+const getOrderItemName = (item: OrderItem, details: BookingDetails) => {
+    const addons = details.selected_addons;
+    if (Array.isArray(addons)) {
+        const matched = addons.find((a) => Math.abs(Number(a.price) - Number(item.price)) < 1);
+        if (matched) return { name: matched.name, isAddon: true };
+    }
+    const dbName = item.name || "";
+    if (dbName && !dbName.toLowerCase().includes("service item")) {
+        const isAddon = dbName.toLowerCase().includes("add-on");
+        return { name: dbName.replace(/Add-on:\s*/i, ""), isAddon };
+    }
+    return { name: details.service_name || "Service Item", isAddon: false };
+};
+
+// --- MAIN COMPONENT ---
+
 export default function BookingDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const id = params?.id; // This is the BOOKING ID from the URL
+  const id = params?.id; 
 
-  const [booking, setBooking] = useState<Order | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // --- FETCHING LOGIC ---
   useEffect(() => {
     if (!id) return;
     const fetchDetail = async () => {
       setLoading(true);
       try {
         const response = await api.get("/my-orders");
-        const allOrders = response.data;
-        
-        // Find order by matching inner booking ID
-        const foundOrder = allOrders.find((o: Order) => 
+        const foundOrder = response.data.find((o: Order) => 
            String(o.booking?.id) === String(id)
         );
-
-        if (foundOrder) {
-            setBooking(foundOrder);
-        } else {
-            throw new Error("Booking not found in your orders.");
-        }
-
+        if (foundOrder) setOrder(foundOrder);
+        else throw new Error("Booking not found.");
       } catch (error) {
-        console.error("Failed to fetch booking detail", error);
+        console.error(error);
         toast.error("Failed to load booking details.");
       } finally {
         setLoading(false);
@@ -174,361 +212,309 @@ export default function BookingDetailPage() {
   }, [id]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground animate-pulse">Loading details...</div>;
-  if (!booking) return <div className="min-h-screen flex items-center justify-center text-red-500 flex-col gap-2"><AlertCircle size={32}/> Booking not found.</div>;
+  if (!order || !order.booking) return <div className="min-h-screen flex items-center justify-center text-red-500 flex-col gap-2"><AlertCircle size={32}/> Booking not found.</div>;
 
-  // --- DATA NORMALIZATION ---
-  const actualBooking = (booking.booking || booking) as unknown as Booking; 
-  if (!actualBooking) return <div className="p-8 text-center">Booking data is incomplete.</div>;
-
-  const details: BookingDetails = actualBooking.details || booking.details || {};
-  const bookable: Bookable = actualBooking.bookable || booking.bookable || {};
-  const bookableType = actualBooking.bookable_type || booking.bookable_type || "";
+  const booking = order.booking;
+  const details = booking.details;
+  const bookable = booking.bookable;
+  const bookableType = booking.bookable_type;
   
-  const startDate = actualBooking.start_date;
-  const endDate = actualBooking.end_date;
-  let dateDisplay = (details.departure_date as string) || (details.departureDate as string) || "-";
-  
-  if (startDate) {
-      dateDisplay = formatDate(startDate);
-      if (endDate && endDate !== startDate) {
-          dateDisplay += ` - ${formatDate(endDate)}`;
-      }
-  }
+  const dateDisplay = booking.start_date ? formatDate(booking.start_date) : "-";
+  const serviceName = String(details.service_name || bookable.name || (bookable.brand ? `${bookable.brand} ${bookable.car_model}` : "Service Details"));
 
-  const serviceName = details.service_name || 
-                      bookable.name || 
-                      (bookable.brand ? `${bookable.brand} ${bookable.car_model}` : null) || 
-                      (bookableType?.includes("TripPlanner") ? "Custom Trip Plan" : "Service Details");
-
-  // Helper for JSON key access
-  const getVal = (key: string, ...alts: string[]) => {
+  const getVal = (key: string, ...alts: string[]): string | null => {
     const keys = [key, ...alts];
     for (const k of keys) {
-       if (details[k] !== undefined && details[k] !== null && details[k] !== "" && details[k] !== "null") return details[k] as string;
+       const val = details[k];
+       if (val !== undefined && val !== null && val !== "" && val !== "null" && typeof val !== "object") return String(val);
     }
     return null;
   };
 
-  // ✅ WHATSAPP HELPER FUNCTION
   const openWhatsApp = (reason: string) => {
     const phoneNumber = "6282224291148"; 
-
-    const bookingRef = `Booking ID: #${actualBooking.id} (Order: ${booking.order_number})`;
-    const text = `Hello Admin, I need help with my booking.\n\n` +
-                 `📌 *${bookingRef}*\n` +
-                 `🛎️ *Service:* ${serviceName}\n\n` +
-                 `⚠️ *Issue:* ${reason}\n` +
-                 `--------------------------\n` +
-                 `[Please explain your issue in detail here...]`;
-
+    const text = `Hello Admin, I need help with my booking.\n📌 *Order: ${order.order_number}*\n🛎️ *Service:* ${serviceName}\n⚠️ *Issue:* ${reason}`;
     const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
 
   // --- RENDERERS ---
 
-  // ✅ FIX: Improved Trip Planner Renderer
-  const renderTripPlanner = () => {
-      const type = getVal('type') || 'personal';
-      const contactName = type === 'company' ? getVal('companyName', 'company_name') : getVal('fullName', 'full_name');
-      
-      // Calculate Total Pax from all categories
-      const adults = parseInt((getVal('paxAdults', 'pax_adults') || "0") as string);
-      const teens = parseInt((getVal('paxTeens', 'pax_teens') || "0") as string);
-      const kids = parseInt((getVal('paxKids', 'pax_kids') || "0") as string);
-      const seniors = parseInt((getVal('paxSeniors', 'pax_seniors') || "0") as string);
-      
-      const totalPax = (adults + teens + kids + seniors) || details.quantity || 1;
-
-      // Handle Location Nulls
-      const city = getVal('city');
-      const province = getVal('province');
-      const country = getVal('country');
-      const tripType = getVal('tripType', 'trip_type');
-      const destinationLegacy = getVal('destination');
-
-      let location = "Custom Destination"; // Fallback text
-
-      if (city) {
-          if (tripType === 'domestic') {
-             location = `🇮🇩 ${city}${province ? `, ${province}` : ''}`;
-          } else {
-             location = `🌐 ${city}${country ? `, ${country}` : ''}`;
-          }
-      } else if (destinationLegacy) {
-          location = destinationLegacy;
-      }
-
-      // Handle Duration & Budget defaults
-      const durationVal = getVal('duration');
-      const durationDisplay = durationVal ? `${durationVal} Days` : "1 Day";
-      
-      const budgetVal = getVal('budgetPack', 'budget_pack');
-      const budgetDisplay = budgetVal ? budgetVal.toUpperCase() : "STANDARD";
-
-      return (
-        <div className="grid md:grid-cols-2 gap-8">
-            <div>
-               <SectionTitle icon={<Compass size={18}/>} title="Trip Overview" />
-               <div className="space-y-1">
-                  <InfoRow icon={<MapPin size={14}/>} label="Destination" value={location} />
-                  <InfoRow icon={<Calendar size={14}/>} label="Dates" value={`${dateDisplay} (${durationDisplay})`} />
-                  <InfoRow icon={<Plane size={14}/>} label="Travel Type" value={(getVal('travelType', 'travel_type') || 'Personal').replace(/_/g, ' ')} />
-                  <InfoRow icon={<Wallet size={14}/>} label="Budget Pack" value={budgetDisplay} />
-               </div>
-            </div>
-            <div>
-               <SectionTitle icon={<User size={18}/>} title="Organizer" />
-               <div className="space-y-1">
-                  <InfoRow icon={type === 'company' ? <Building2 size={14}/> : <User size={14}/>} label="Contact Name" value={contactName} />
-                  <InfoRow icon={<Mail size={14}/>} label="Email" value={getVal('email')} />
-                  <InfoRow icon={<Phone size={14}/>} label="Phone" value={getVal('phone', 'phone_number')} />
-                  <InfoRow icon={<Users size={14}/>} label="Total Participants" value={`${totalPax} Pax`} />
-               </div>
-            </div>
-        </div>
-      );
-  };
-
-  const renderCarRental = () => {
-    return (
-        <div className="grid md:grid-cols-2 gap-8">
-            <div>
-                <SectionTitle icon={<Car size={18}/>} title="Vehicle Details" />
-                <div className="space-y-1">
-                    <InfoRow icon={<Car size={14}/>} label="Vehicle" value={`${bookable.brand || ''} ${bookable.car_model || ''}`} />
-                    <InfoRow icon={<Compass size={14}/>} label="Transmission" value={bookable.transmission || "-"} />
-                    <InfoRow icon={<Wallet size={14}/>} label="Fuel Type" value={bookable.fuel_type || "-"} />
-                    <InfoRow icon={<Clock size={14}/>} label="Duration" value={`${details.total_days || 1} Day(s)`} />
-                </div>
-            </div>
-            <div>
-                <SectionTitle icon={<MapPin size={18}/>} title="Rental Logistics" />
-                <div className="space-y-1">
-                    <InfoRow icon={<Calendar size={14}/>} label="Rental Dates" value={dateDisplay} />
-                    <InfoRow icon={<MapPin size={14}/>} label="Pickup" value={`${details.pickup_location || '-'} (${details.pickup_time || '-'})`} />
-                    {details.return_location && (
-                        <InfoRow icon={<MapPin size={14}/>} label="Return" value={`${details.return_location} (${details.return_time || '-'})`} />
-                    )}
-                    <InfoRow icon={<Phone size={14}/>} label="Driver Contact" value={details.phone_number as string} />
-                </div>
-            </div>
-        </div>
-    );
-  };
-
-  const renderHolidayPackage = () => {
-      const adults = (details.adults as number) || 0;
-      const children = (details.children as number) || 0;
-      const totalPax = (details.total_pax as number) || (adults + children);
-
-      return (
-        <div className="grid md:grid-cols-2 gap-8">
-             <div>
-                <SectionTitle icon={<Users size={18}/>} title="Guest Info" />
-                <div className="space-y-1">
-                    <InfoRow icon={<User size={14}/>} label="Lead Guest" value={`${details.full_name} (${details.participant_nationality || '-'})`} />
-                    <InfoRow icon={<Users size={14}/>} label="Travelers" value={`${totalPax} Pax (${adults} Adult, ${children} Child)`} />
-                    <InfoRow icon={<Mail size={14}/>} label="Email" value={details.email as string} />
-                    <InfoRow icon={<Phone size={14}/>} label="Phone" value={details.phone_number as string} />
-                </div>
-             </div>
-             <div>
-                <SectionTitle icon={<Luggage size={18}/>} title="Package Details" />
-                <div className="space-y-1">
-                    <InfoRow icon={<MapPin size={14}/>} label="Destination" value={bookable.name} />
-                    <InfoRow icon={<Calendar size={14}/>} label="Schedule" value={dateDisplay} />
-                    <InfoRow icon={<MapPin size={14}/>} label="Meeting Point" value={(details.meeting_point as string) || (details.pickup_location as string) || "Check Voucher"} />
-                    {details.flight_number && <InfoRow icon={<Plane size={14}/>} label="Flight Info" value={details.flight_number as string} />}
-                </div>
-             </div>
-        </div>
-      );
-  };
-
-  const renderOpenTrip = () => {
-    const pax = details.num_participants || details.quantity || 1;
-    return (
+  const renderCarRental = () => (
+    <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-8">
-           <div>
-              <SectionTitle icon={<Map size={18}/>} title="Trip Info" />
-              <div className="space-y-1">
-                  <InfoRow icon={<Map size={14}/>} label="Trip Name" value={bookable.name} />
-                  <InfoRow icon={<MapPin size={14}/>} label="Destination" value={bookable.destination || "Multiple Locations"} />
-                  <InfoRow icon={<Calendar size={14}/>} label="Schedule" value={dateDisplay} />
-                  <InfoRow icon={<MapPin size={14}/>} label="Meeting Point" value={(details.meeting_point as string) || (bookable.meeting_point as string) || "TBA"} />
+        <div>
+          <SectionTitle icon={<Car size={18}/>} title="Vehicle Specs & Pickup" />
+          <div className="space-y-1">
+            <InfoRow icon={<Car size={14}/>} label="Brand & Model" value={`${String(details.brand || bookable.brand || '')} ${String(details.car_model || bookable.car_model || '')}`} />
+            <InfoRow icon={<Calendar size={14}/>} label="Duration" value={`${getVal('total_days') || '1'} Day(s)`} />
+            <InfoRow icon={<Calendar size={14}/>} label="Pickup Date" value={dateDisplay} />
+            <InfoRow icon={<Clock size={14}/>} label="Pickup Time" value={getVal('pickup_time')} />
+            <InfoRow icon={<MapPin size={14}/>} label="Pickup Location" value={getVal('pickup_location')} />
+          </div>
+        </div>
+        <div>
+          <SectionTitle icon={<Phone size={18}/>} title="Contact & Pricing Audit" />
+          <div className="space-y-1">
+            <InfoRow icon={<Phone size={14}/>} label="Contact Number" value={getVal('phone_number', 'phone')} />
+            <InfoRow icon={<Tag size={14}/>} label="Price Per Day" value={formatCurrency(Number(details.price_per_day || 0))} />
+            <InfoRow icon={<Mail size={14}/>} label="Email" value={getVal('email')} />
+          </div>
+        </div>
+      </div>
+      <AddonsSection addons={details.selected_addons} />
+    </div>
+  );
+
+  const renderActivity = () => (
+    <div className="space-y-6">
+      <div className="grid md:grid-cols-2 gap-8">
+        <div>
+          <SectionTitle icon={<Ticket size={18}/>} title="Activity & Schedule" />
+          <div className="space-y-1">
+            <InfoRow icon={<Ticket size={14}/>} label="Activity Name" value={serviceName} />
+            <InfoRow icon={<Calendar size={14}/>} label="Date" value={dateDisplay} />
+            <InfoRow icon={<Clock size={14}/>} label="Time Slot" value={getVal('activity_time')} />
+            <InfoRow icon={<MapPin size={14}/>} label="Meeting Point" value={getVal('pickup_location', 'meeting_point')} />
+          </div>
+        </div>
+        <div>
+          <SectionTitle icon={<Users size={18}/>} title="Participant Info" />
+          <div className="space-y-1">
+            <InfoRow icon={<User size={14}/>} label="Lead Participant" value={getVal('full_name', 'fullName')} />
+            <InfoRow icon={<Users size={14}/>} label="Total Pax" value={`${getVal('quantity') || '1'} Person(s)`} />
+            <InfoRow icon={<Tag size={14}/>} label="Price Per Person" value={formatCurrency(Number(details.price_per_person || 0))} />
+            <InfoRow icon={<Phone size={14}/>} label="Contact" value={getVal('phone_number', 'phone')} />
+          </div>
+        </div>
+      </div>
+      <AddonsSection addons={details.selected_addons} />
+    </div>
+  );
+
+  const renderHolidayPackage = () => (
+    <div className="space-y-6">
+      <div className="grid md:grid-cols-2 gap-8">
+        <div>
+          <SectionTitle icon={<Luggage size={18}/>} title="Package Logistics" />
+          <div className="space-y-1">
+            <InfoRow icon={<MapPin size={14}/>} label="Destination" value={String(bookable.name || "-")} />
+            <InfoRow icon={<Calendar size={14}/>} label="Trip Dates" value={dateDisplay} />
+            <InfoRow icon={<MapPin size={14}/>} label="Pickup/Meeting" value={getVal('pickup_location', 'meeting_point')} />
+            <InfoRow icon={<Plane size={14}/>} label="Flight Number" value={getVal('flight_number')} />
+          </div>
+        </div>
+        <div>
+          <SectionTitle icon={<Users size={18}/>} title="Guest List" />
+          <div className="space-y-1">
+            <InfoRow icon={<User size={14}/>} label="Lead Guest" value={getVal('full_name', 'fullName')} />
+            <InfoRow icon={<Users size={14}/>} label="Travelers" value={`${getVal('adults') || '1'} Adults, ${getVal('children') || '0'} Children`} />
+            <InfoRow icon={<Tag size={14}/>} label="Price Per Pax" value={formatCurrency(Number(details.price_per_pax || 0))} />
+            <InfoRow icon={<Phone size={14}/>} label="Contact" value={getVal('phone_number', 'phone')} />
+          </div>
+        </div>
+      </div>
+      <AddonsSection addons={details.selected_addons} />
+    </div>
+  );
+
+  const renderTripPlanner = () => {
+    const adults = parseInt(getVal('paxAdults', 'pax_adult_count') || "0");
+    const kids = parseInt(getVal('paxKids', 'pax_kid_count') || "0");
+    const totalPax = (adults + kids) || parseInt(getVal('quantity') || "1");
+
+    const tripType = getVal('tripType', 'trip_type');
+    const city = getVal('city');
+    const province = getVal('province');
+    const country = getVal('country');
+    
+    let locationDisplay = (getVal('destination') || "Custom Destination") as string;
+    if (city) {
+      locationDisplay = tripType === 'domestic' 
+        ? `🇮🇩 ${city}${province ? `, ${province}` : ''}`
+        : `🌐 ${city}${country ? `, ${country}` : ''}`;
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 flex gap-4 items-start shadow-sm">
+          <div className="bg-purple-100 p-2 rounded-lg text-purple-600 shrink-0">
+            <Plane size={20} className="animate-pulse" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-purple-900 uppercase tracking-tight">Crafting Your Dream Trip</h4>
+            <p className="text-xs text-purple-700 leading-relaxed">
+              Our travel specialists are currently working on crafting your personalized itinerary. 
+              <strong> Please ensure your WhatsApp number below is correct</strong>, as we will contact you via WhatsApp to finalize your trip details and preferences.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          <div>
+            <SectionTitle icon={<Compass size={18}/>} title="Trip Concept" />
+            <div className="space-y-1">
+              <InfoRow icon={<MapPin size={14}/>} label="Planned Destination" value={locationDisplay} />
+              <InfoRow icon={<Calendar size={14}/>} label="Tentative Departure" value={getVal('departureDate') || dateDisplay} />
+              <InfoRow icon={<Clock size={14}/>} label="Planned Duration" value={`${getVal('duration') || String(bookable.duration || 1)} Day(s)`} />
+              <InfoRow icon={<Wallet size={14}/>} label="Budget Preference" value={(getVal('budgetPack')?.toUpperCase() || "STANDARD") as string} />
+            </div>
+          </div>
+          <div>
+            <SectionTitle icon={<User size={18}/>} title="Contact & Group Info" />
+            <div className="space-y-1">
+              <InfoRow icon={<User size={14}/>} label="Primary Contact" value={(getVal('fullName', 'full_name', 'companyName') || "Customer") as string} />
+              <InfoRow icon={<Phone size={14}/>} label="WhatsApp Number" value={getVal('phone', 'phone_number')} />
+              <InfoRow icon={<Users size={14}/>} label="Travel Group" value={`${totalPax} Person(s) (${(getVal('type', 'travelType', 'travel_type') || "Personal")})`} />
+              <div className="pl-8 pt-1 flex flex-wrap gap-x-3 gap-y-1">
+                {adults > 0 && <span className="text-[10px] text-muted-foreground uppercase font-bold">{adults} Adults</span>}
+                {kids > 0 && <span className="text-[10px] text-muted-foreground uppercase font-bold">{kids} Kids</span>}
               </div>
-           </div>
-           <div>
-              <SectionTitle icon={<Users size={18}/>} title="Booking Details" />
-              <div className="space-y-1">
-                  <InfoRow icon={<User size={14}/>} label="Booked By" value={details.full_name as string} />
-                  <InfoRow icon={<Users size={14}/>} label="Seats" value={`${pax} Person(s)`} />
-                  <InfoRow icon={<Phone size={14}/>} label="Contact" value={details.phone_number as string} />
-                  {details.special_request && (
-                      <InfoRow icon={<MessageSquare size={14}/>} label="Notes" value={details.special_request as string} />
-                  )}
-              </div>
-           </div>
+              <InfoRow icon={<Mail size={14}/>} label="Email Address" value={getVal('email')} />
+            </div>
+          </div>
+        </div>
       </div>
     );
   };
 
-  const renderActivity = () => {
-    return (
-        <div className="grid md:grid-cols-2 gap-8">
-             <div>
-                <SectionTitle icon={<Ticket size={18}/>} title="Ticket Holder" />
-                <div className="space-y-1">
-                    <InfoRow icon={<User size={14}/>} label="Name" value={details.full_name as string} />
-                    <InfoRow icon={<Ticket size={14}/>} label="Quantity" value={`${details.quantity || 1} Ticket(s)`} />
-                    <InfoRow icon={<Mail size={14}/>} label="Email" value={details.email as string} />
-                    <InfoRow icon={<Phone size={14}/>} label="Phone" value={details.phone_number as string} />
-                </div>
-             </div>
-             <div>
-                <SectionTitle icon={<MapPin size={18}/>} title="Activity Info" />
-                <div className="space-y-1">
-                    <InfoRow icon={<Ticket size={14}/>} label="Activity" value={bookable.name} />
-                    <InfoRow icon={<Calendar size={14}/>} label="Date" value={dateDisplay} />
-                    <InfoRow icon={<MapPin size={14}/>} label="Location" value={(details.pickup_location as string) || "On Site"} />
-                    {details.special_request && (
-                        <InfoRow icon={<MessageSquare size={14}/>} label="Special Request" value={details.special_request as string} />
-                    )}
-                </div>
-             </div>
+  const renderItemsTable = () => (
+    <div className="mb-10 border border-border rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-slate-50 px-4 py-3 border-b border-border flex items-center gap-2">
+            <Package size={16} className="text-primary" />
+            <span className="font-bold text-xs uppercase tracking-widest text-slate-500">Items Purchased</span>
         </div>
-    );
-  };
-
-  const renderSpecificDetails = () => {
-      if (bookableType?.includes("TripPlanner")) return renderTripPlanner();
-      if (bookableType?.includes("CarRental")) return renderCarRental();
-      if (bookableType?.includes("HolidayPackage")) return renderHolidayPackage();
-      if (bookableType?.includes("OpenTrip")) return renderOpenTrip();
-      if (bookableType?.includes("Activity")) return renderActivity();
-      return <p className="text-muted-foreground italic p-4 text-center">Service details are available in the attached invoice.</p>;
-  };
+        <div className="overflow-x-auto">
+            <table className="w-full text-left">
+                <thead className="bg-slate-50/50 text-[10px] uppercase font-bold text-muted-foreground border-b">
+                    <tr>
+                        <th className="px-6 py-3">Description</th>
+                        <th className="px-6 py-3 text-center">Qty</th>
+                        <th className="px-6 py-3 text-right">Price</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y">
+                    {order.order_items?.map((item) => {
+                        const { name, isAddon } = getOrderItemName(item, details);
+                        return (
+                            <tr key={item.id} className="text-sm">
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-1.5 rounded ${isAddon ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
+                                            {isAddon ? <PlusCircle size={14}/> : <Tag size={14}/>}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold">{String(name)}</p>
+                                            <p className="text-[10px] text-muted-foreground uppercase">{isAddon ? 'Optional Extra' : 'Base Service'}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4 text-center font-bold">{item.quantity}</td>
+                                <td className="px-6 py-4 text-right font-bold">{formatCurrency(item.price)}</td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+        <div className="p-4 bg-slate-50/30 border-t flex flex-col items-end gap-1">
+            <div className="flex justify-between w-full max-w-xs text-xs font-medium text-muted-foreground">
+                <span>Subtotal</span><span>{formatCurrency(order.subtotal)}</span>
+            </div>
+            {Number(order.discount_amount) > 0 && (
+                <div className="flex justify-between w-full max-w-xs text-xs font-bold text-red-600">
+                    <span>Discount</span><span>-{formatCurrency(order.discount_amount)}</span>
+                </div>
+            )}
+            <div className="flex justify-between w-full max-w-xs text-base font-black pt-2 border-t text-primary mt-1">
+                <span>Final Total</span><span>{formatCurrency(order.total_amount)}</span>
+            </div>
+        </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50/50 py-8 px-4 md:px-6">
       <div className="max-w-4xl mx-auto">
-        
-        {/* Navigation */}
-        <button 
-            onClick={() => router.back()} 
-            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary mb-6 transition-colors group"
-        >
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary mb-6 transition-colors group">
             <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> 
             Back to Bookings
         </button>
 
-        {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            
-            {/* HEADER */}
             <div className="p-6 md:p-8 border-b border-gray-100 flex flex-col md:flex-row justify-between gap-4 bg-white">
                 <div className="space-y-2">
                     <div className="flex items-center gap-3">
-                         <ServiceTypeBadge type={bookableType || "Unknown"} />
+                         <ServiceTypeBadge type={bookableType} />
                          <span className="flex items-center gap-1 text-xs font-mono text-gray-400">
-                             <Hash size={12} /> {booking.order_number}
+                             <Hash size={12} /> {order.order_number}
                          </span>
                     </div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-primary leading-tight">
-                        {serviceName}
-                    </h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-primary leading-tight">{serviceName}</h1>
                 </div>
                 <div className="shrink-0">
-                     <span className={`${getStatusChip(actualBooking.status || booking.status)} px-3 py-1 text-sm font-bold capitalize flex items-center gap-2`}>
-                        {(actualBooking.status === 'pending') && <Clock size={14}/>}
-                        {(actualBooking.status === 'confirmed' || actualBooking.status === 'completed') && <CheckCircle2 size={14}/>}
-                        {(actualBooking.status || booking.status).replace(/_/g, " ")}
+                     <span className={`${getStatusChip(booking.status)} px-3 py-1 text-sm font-bold capitalize flex items-center gap-2`}>
+                        {booking.status === 'pending' ? <Clock size={14}/> : <CheckCircle2 size={14}/>}
+                        {booking.status.replace(/_/g, " ")}
                      </span>
                 </div>
             </div>
 
-            {/* BODY */}
             <div className="p-6 md:p-8">
-                {/* 1. Service Details Section */}
                 <div className="mb-10">
-                    {renderSpecificDetails()}
+                    <div className="mb-4">
+                        <SectionTitle icon={<ListChecks size={18} />} title="Fulfillment Information" />
+                        <p className="text-[10px] text-muted-foreground ml-7 -mt-4">Requirements defined during checkout</p>
+                    </div>
+                    
+                    {/* RESTORED ALL RENDERERS */}
+                    {bookableType.includes("CarRental") && renderCarRental()}
+                    {bookableType.includes("Activity") && renderActivity()}
+                    {(bookableType.includes("HolidayPackage") || bookableType.includes("OpenTrip")) && renderHolidayPackage()}
+                    {bookableType.includes("TripPlanner") && renderTripPlanner()}
+                    
+                    {details.special_request && typeof details.special_request === "string" && (
+                      <div className="mt-6 p-4 bg-amber-50/50 border border-amber-100 rounded-lg flex gap-3">
+                        <MessageSquare size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold uppercase text-amber-700 tracking-wider">Special Requests</span>
+                          <p className="text-sm text-amber-900 italic">&quot;{String(details.special_request)}&quot;</p>
+                        </div>
+                      </div>
+                    )}
                 </div>
 
-                {/* 2. Payment Summary Section */}
+                {renderItemsTable()}
+
                 <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-8">
-                     <SectionTitle icon={<CreditCard size={18}/>} title="Payment Summary" />
-                     
+                     <SectionTitle icon={<CreditCard size={18}/>} title="Payment Status" />
                      <div className="flex flex-col md:flex-row justify-between items-end gap-4 mt-4">
                          <div className="space-y-2 text-sm text-gray-600">
-                             <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground">Order Status:</span>
-                                <span className="font-semibold text-gray-900 capitalize">{booking.status}</span>
-                             </div>
-                             <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground">Method:</span>
-                                <span className="font-semibold text-gray-900 capitalize">{booking.payment_status}</span>
-                             </div>
-                             {booking.payment_deadline && booking.status === 'pending' && (
-                                <p className="text-xs text-red-500 mt-2 flex items-center gap-1 bg-red-50 px-2 py-1 rounded w-fit">
-                                    <Clock size={12}/> Pay before: {formatDate(booking.payment_deadline)}
-                                </p>
+                             <div className="flex items-center gap-2"><span className="text-muted-foreground">Order Status:</span><span className="font-semibold text-gray-900 capitalize">{order.status}</span></div>
+                             <div className="flex items-center gap-2"><span className="text-muted-foreground">Payment Status:</span><span className="font-semibold text-gray-900 capitalize">{order.payment_status}</span></div>
+                             {order.payment_deadline && order.status === 'pending' && (
+                                <p className="text-xs text-red-500 mt-2 flex items-center gap-1 bg-red-50 px-2 py-1 rounded w-fit"><Clock size={12}/> Pay before: {formatDate(order.payment_deadline)}</p>
                              )}
                          </div>
-
                          <div className="text-right">
-                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Amount</p>
-                             <p className="text-2xl font-bold text-primary">
-                                {formatCurrency(booking.total_amount)}
-                             </p>
-                             {booking.down_payment_amount > 0 && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                    (Down Payment: {formatCurrency(booking.down_payment_amount)})
-                                </p>
-                             )}
+                             <p className="text-xs font-bold text-gray-400 uppercase mb-1">Total Amount</p>
+                             <p className="text-2xl font-bold text-primary">{formatCurrency(order.total_amount)}</p>
                          </div>
                      </div>
                 </div>
 
-                {/* 3. HELP / CONTACT ADMIN SECTION */}
                 <div className="bg-blue-50/50 rounded-xl p-6 border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="flex items-start gap-4">
-                        <div className="bg-blue-100 p-3 rounded-full text-blue-600 hidden sm:block">
-                            <HelpCircle size={24} />
-                        </div>
+                        <div className="bg-blue-100 p-3 rounded-full text-blue-600 hidden sm:block"><HelpCircle size={24} /></div>
                         <div>
-                            <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                                <MessageCircle className="sm:hidden" size={18} /> 
-                                Need help with this booking?
-                            </h3>
-                            <p className="text-sm text-blue-700 mt-1 max-w-md">
-                                If you spot an error in the schedule, wrong details, or have a question, contact us directly via WhatsApp.
-                            </p>
+                            <h3 className="font-bold text-blue-900">Need help with this booking?</h3>
+                            <p className="text-sm text-blue-700 mt-1">If you spot an error in the details, contact us directly.</p>
                         </div>
                     </div>
-
-                    <div className="flex flex-wrap gap-2 justify-end shrink-0 w-full md:w-auto">
-                         <button 
-                           onClick={() => openWhatsApp("Wrong Schedule")}
-                           className="px-4 py-2 text-xs font-semibold bg-white text-blue-700 border border-blue-200 rounded-full hover:bg-blue-50 transition-colors shadow-sm"
-                         >
-                           Wrong Schedule?
-                         </button>
-                         <button 
-                           onClick={() => openWhatsApp("Incorrect Details")}
-                           className="px-4 py-2 text-xs font-semibold bg-white text-blue-700 border border-blue-200 rounded-full hover:bg-blue-50 transition-colors shadow-sm"
-                         >
-                           Wrong Info?
-                         </button>
-                         <button 
-                           onClick={() => openWhatsApp("General Inquiry")}
-                           className="px-5 py-2 text-sm font-bold bg-green-500 text-white rounded-full hover:bg-green-600 shadow-md flex items-center gap-2 transition-all hover:shadow-lg"
-                         >
-                           <MessageCircle size={16} /> Chat Admin
-                         </button>
-                    </div>
+                    <button onClick={() => openWhatsApp("Booking Detail Inquiry")} className="px-5 py-2 text-sm font-bold bg-green-500 text-white rounded-full hover:bg-green-600 shadow-md flex items-center gap-2 transition-all">
+                        <MessageCircle size={16} /> Chat Admin
+                    </button>
                 </div>
-
             </div>
         </div>
       </div>
