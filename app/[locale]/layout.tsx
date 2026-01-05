@@ -16,6 +16,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { routing } from "@/i18n/routing";
 import FloatingContact from "@/components/FloatingContact"; 
 
+
+import {GoogleAnalytics} from '@next/third-parties/google'
+
 // --- Font Configurations ---
 const fontPoppins = Poppins({
   subsets: ["latin"],
@@ -154,6 +157,7 @@ export default async function RootLayout({
         />
       </head>
       <body className="bg-background text-foreground font-sans antialiased">
+        <GoogleAnalytics gaId="G-F3E8XBJC29"/>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <AuthProvider>
             <ThemeProvider>
