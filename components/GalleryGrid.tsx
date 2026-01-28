@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import Link from "next/link";
+// Link is no longer needed since we removed the button
 import { 
   X, 
   ChevronLeft, 
@@ -11,10 +11,9 @@ import {
   MapPin, 
   Clock, 
   Tag, 
-  Info, 
   ZoomIn,
   Loader2,
-  ArrowUpRight
+  // ArrowUpRight removed
 } from "lucide-react";
 import api from "@/lib/api"; 
 import { useLocale } from "next-intl";
@@ -287,24 +286,7 @@ export default function GalleryGrid() {
                     )}
                 </div>
 
-                {/* Footer Button (Primary Color) */}
-                <div className="mt-auto pt-4 border-t border-gray-100">
-                    {selectedItem.redirect_url ? (
-                        <Link 
-                            href={selectedItem.redirect_url} 
-                            
-                            className="flex items-center justify-center w-full py-3.5 bg-primary hover:bg-primary/90 text-white font-bold text-sm text-center rounded-xl transition shadow-lg hover:shadow-xl gap-2 group"
-                        >
-                            {selectedItem.redirect_text || "View Package Details"}
-                            <ArrowUpRight size={16} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                        </Link>
-                    ) : (
-                        <button disabled className="block w-full py-3.5 bg-gray-100 text-gray-400 font-bold text-sm text-center rounded-xl cursor-not-allowed">
-                            Information Only
-                        </button>
-                    )}
-                </div>
-
+                {/* Footer Button Removed Here */}
             </div>
           </div>
         </div>
