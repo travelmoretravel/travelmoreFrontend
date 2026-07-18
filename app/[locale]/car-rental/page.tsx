@@ -53,9 +53,12 @@ function CarCard({ car, isExclusive }: { car: ApiCar; isExclusive: boolean }) {
   const price = parseFloat(car.price_per_day);
   const thumbnail = car.images.find(img => img.type === 'thumbnail');
 
-  const imageUrl = thumbnail
-    ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/storage/${thumbnail.url}`
-    : "/cars/placeholder.jpg";
+  // ✅ CORRECT (Checks if the URL already has http, otherwise safely appends)
+const imageUrl = thumbnail
+  ? (thumbnail.url.startsWith('http') 
+      ? thumbnail.url 
+      : `${process.env.NEXT_PUBLIC_API_BASE_URL}/storage/${thumbnail.url}`)
+  : "/cars/placeholder.jpg";
 
   const displayType = car.car_type?.toUpperCase() || "GENERAL";
 
